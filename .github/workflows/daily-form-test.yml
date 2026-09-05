@@ -1,14 +1,17 @@
-name: Daily Contact Form Test
+name: Daily Multi-Website Form Test
 
 on:
   schedule:
-    - cron: '0 7 * * *'   # Every day at 07:00 UTC (adjust as needed)
-  workflow_dispatch:       # Allows manual run from GitHub UI
+    # Runs every day at 07:00 UTC (change the time if you want)
+    - cron: '0 7 * * *'
+  
+  # Allows you to run it manually anytime from GitHub
+  workflow_dispatch:
 
 jobs:
-  test-form:
+  test-forms:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
       - name: Checkout code
@@ -25,15 +28,17 @@ jobs:
           pip install -r requirements.txt
           playwright install chromium --with-deps
 
-      - name: Run Form Test
+      - name: Run Multi-Website Form Tests
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: python test_contact_form.py
+        run: python test_forms.py
 
-      - name: Upload screenshot on any result
+      - name: Upload screenshots (if any)
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: form-test-screenshot
-          path: form-test-result.png
+          name: form-test-screenshots
+          path: |
+            *.png
+            screenshots/
           retention-days: 14

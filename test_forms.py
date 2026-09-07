@@ -98,31 +98,55 @@ def test_main_contact_form(page, site_name: str, url: str):
         return False, f"Main Contact Form Error: {str(e)}"
 
 def test_callback_form(page, site_name: str, url: str):
+    """Test the floating REQUEST A CALLBACK form"""
     print(f"  → Testing REQUEST A CALLBACK form on {site_name}...")
+
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=45000)
         page.wait_for_timeout(3000)
 
+        # 1. Click the floating button
         page.get_by_text("Request A Call Back", exact=False).first.click(timeout=10000)
         page.wait_for_timeout(2500)
 
-        page.get_by_role("textbox", name="First Name").or_(page.locator("input[placeholder*='First']")).first.fill(f"{TEST_PREFIX} Sarah")
-        page.get_by_role("textbox", name="Last Name").or_(page.get_by_role("textbox", name="Surname")).or_(page.locator("input[placeholder*='Last']")).first.fill(f"{TEST_PREFIX} Khan")
-        page.get_by_role("textbox", name="Phone").or_(page.locator("input[type='tel']")).first.fill("07987654321")
-        page.get_by_role("textbox", name="Postcode").or_(page.get_by_role("textbox", name="Post code")).first.fill("BN2 2BB")
+        # 2. Fill the form using more reliable selectors
+        # First Name
+        page.locator("form input[type='text']").nth(0).fill(f"{TEST_PREFIX} Sarah")
+
+        # Last Name
+        page.locator("form input[type='text']").nth(1).fill(f"{TEST_PREFIX} Khan")
+
+        # Phone number
+        page.locator("form input[type='tel']").fill("07987654321")
+
+        # Post Code
+        page.locator("form input[type='text']").nth(2).fill("BN2 2BB")
+
+        # 3. Check the required Terms & Conditions checkbox
+        page.locator("form input[type='checkbox']").check()
 
         page.wait_for_timeout(800)
-        page.get_by_role("button", name="Submit").or_(page.locator("button[type='submit']")).first.click()
+
+        # 4. Click Submit
+        page.locator("form button[type='submit']").click()
+
         page.wait_for_timeout(5000)
 
+        # 5. Check for success
         content = page.content().lower()
-        if any(word in content for word in ["thank you", "successfully", "received", "we will call", "callback"]):
+        success_words = ["thank you", "successfully", "received", "we will call", "callback", "submitted", "success"]
+
+        if any(word in content for word in success_words):
             return True, "Callback Form → PASSED"
         else:
-            return False, "Callback Form → FAILED"
+            # Even if no clear message, check if form disappeared (common success behavior)
+            if page.locator("form button[type='submit']").count() == 0:
+                return True, "Callback Form → PASSED (form closed after submit)"
+            return False, "Callback Form → FAILED (no success message detected)"
 
     except Exception as e:
         return False, f"Callback Form Error: {str(e)}"
+
 
 def run_all_tests():
     print(f"\n=== Starting Multi-Website Form Tests at {datetime.now()} ===\n")

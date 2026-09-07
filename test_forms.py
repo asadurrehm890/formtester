@@ -122,10 +122,17 @@ def test_callback_form(page, site_name: str, url: str):
         # Check terms checkbox
         page.locator("form input[type='checkbox']").last.check()
 
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(1500)
 
-        # Submit
-        page.locator("button:has-text('Submit'), button[type='submit']").last.click(timeout=10000)
+        # More reliable ways to click Submit
+        try:
+            page.get_by_role("button", name="Submit").last.click(timeout=8000)
+        except:
+            try:
+                page.locator("button[type='submit']").last.click(timeout=5000)
+            except:
+                page.locator("form button").last.click(timeout=5000)
+
         page.wait_for_timeout(6000)
 
         content = page.content().lower()

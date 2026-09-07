@@ -31,12 +31,3 @@ jobs:
           WP_API_URL: ${{ secrets.WP_API_URL }}
           WP_SECRET_KEY: ${{ secrets.WP_SECRET_KEY }}
         run: python test_forms.py
-      
-      - name: Upload screenshots on failure
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: form-error-screenshots
-          path: |
-            *.png
-          retention-days: 5

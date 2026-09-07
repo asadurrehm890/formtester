@@ -53,12 +53,10 @@ def test_main_contact_form(page, site_name: str, url: str):
     print(f"  → Testing Main Contact Form on {site_name}...")
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
-        page.wait_for_timeout(6000)  # Give extra time for JS forms
+        page.wait_for_timeout(6000)
 
-        # Wait until First Name field is visible
         page.wait_for_selector("input", timeout=15000)
 
-        # Fill using label text (most reliable for Ninja Forms)
         page.get_by_label("First Name", exact=False).fill(f"{TEST_PREFIX} John", timeout=10000)
         page.get_by_label("Surname", exact=False).fill(f"{TEST_PREFIX} Doe")
         page.get_by_label("Email", exact=False).fill("form-test@example.com")
@@ -68,11 +66,9 @@ def test_main_contact_form(page, site_name: str, url: str):
         page.get_by_label("Post code", exact=False).fill("BN1 1AA")
         page.get_by_label("Phone", exact=False).fill("07123456789")
 
-        # Radio buttons
         page.get_by_text("Beginner with no driving experience", exact=False).click()
         page.get_by_text("UK Provisional licence", exact=False).click()
 
-        # Other fields
         page.get_by_label("Theory test", exact=False).fill("Yes - Jan 2025")
         page.get_by_label("driving test", exact=False).fill("Not booked yet")
         page.get_by_text("I am looking for an automatic lesson only", exact=False).click()
@@ -91,7 +87,6 @@ def test_main_contact_form(page, site_name: str, url: str):
         return False, "Main Contact Form → FAILED (no success message)"
 
     except Exception as e:
-        page.screenshot(path="main-form-error.png", full_page=True)
         return False, f"Main Contact Form Error: {str(e)}"
 
 def test_callback_form(page, site_name: str, url: str):
@@ -100,7 +95,6 @@ def test_callback_form(page, site_name: str, url: str):
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
         page.wait_for_timeout(5000)
 
-        # Try to find and click the callback button
         try:
             page.get_by_text("Request A Call Back", exact=False).first.click(timeout=8000)
         except:
@@ -111,17 +105,14 @@ def test_callback_form(page, site_name: str, url: str):
 
         page.wait_for_timeout(3000)
 
-        # Wait for popup form
         page.wait_for_selector("form input[type='tel']", timeout=10000)
 
-        # Fill the popup
         inputs = page.locator("form input[type='text']")
         inputs.nth(0).fill(f"{TEST_PREFIX} Sarah")
         inputs.nth(1).fill(f"{TEST_PREFIX} Khan")
         page.locator("form input[type='tel']").fill("07987654321")
         inputs.nth(2).fill("BN2 2BB")
 
-        # Check terms
         page.locator("form input[type='checkbox']").last.check()
 
         page.wait_for_timeout(1000)
@@ -135,7 +126,6 @@ def test_callback_form(page, site_name: str, url: str):
         return False, "Callback Form → FAILED (no success message)"
 
     except Exception as e:
-        page.screenshot(path="callback-form-error.png", full_page=True)
         return False, f"Callback Form Error: {str(e)}"
 
 def run_all_tests():

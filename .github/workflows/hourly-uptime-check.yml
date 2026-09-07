@@ -2,10 +2,7 @@ name: Hourly Website Uptime Check
 
 on:
   schedule:
-    # Runs every hour
     - cron: '0 * * * *'
-  
-  # Manual trigger
   workflow_dispatch:
 
 jobs:
@@ -30,4 +27,6 @@ jobs:
       - name: Run Uptime Check
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          WP_API_URL: ${{ secrets.WP_API_URL }}
+          WP_SECRET_KEY: ${{ secrets.WP_SECRET_KEY }}
         run: python check_uptime.py

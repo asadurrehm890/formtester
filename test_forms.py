@@ -7,12 +7,10 @@ from config.websites import WEBSITES
 
 load_dotenv()
 
-# ================== CONFIG ==================
 DISCORD_WEBHOOK = os.getenv("DISCORD_WEBHOOK_URL")
-WP_API_URL = os.getenv("WP_API_URL")          # Example: https://yoursite.com/wp-json/website-monitor/v1/update
-WP_SECRET_KEY = os.getenv("WP_SECRET_KEY")    # Secret key from plugin settings
+WP_API_URL = os.getenv("WP_API_URL")
+WP_SECRET_KEY = os.getenv("WP_SECRET_KEY")
 TEST_PREFIX = "[AUTO-TEST]"
-# ============================================
 
 def send_discord(title: str, message: str, success: bool = True):
     if not DISCORD_WEBHOOK:
@@ -32,16 +30,11 @@ def send_discord(title: str, message: str, success: bool = True):
         print(f"Discord error: {e}")
 
 def send_to_wordpress(results: list):
-    """Send form test results to WordPress plugin"""
     if not WP_API_URL or not WP_SECRET_KEY:
         print("⚠️  WP_API_URL or WP_SECRET_KEY not set. Skipping WordPress update.")
         return
 
-    payload = {
-        "type": "form",
-        "results": results
-    }
-
+    payload = {"type": "form", "results": results}
     headers = {
         "Content-Type": "application/json",
         "X-WM-Secret": WP_SECRET_KEY
@@ -59,85 +52,98 @@ def send_to_wordpress(results: list):
 def test_main_contact_form(page, site_name: str, url: str):
     print(f"  → Testing Main Contact Form on {site_name}...")
     try:
-        page.goto(url, wait_until="domcontentloaded", timeout=45000)
-        page.wait_for_timeout(4000)
+        page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_timeout(5000)
 
-        page.get_by_role("textbox", name="First Name *").fill(f"{TEST_PREFIX} test")
-        page.get_by_role("textbox", name="Surname *").fill(f"{TEST_PREFIX} test")
-        page.get_by_role("textbox", name="Email *").fill("form-test@example.com")
-        page.get_by_role("textbox", name="Date of birth *").fill("15/05/1990")
-        page.get_by_role("textbox", name="Flat - House *").fill("12A")
-        page.get_by_role("textbox", name="Street - Road *").fill("Test Road")
-        page.get_by_role("textbox", name="Post code *").fill("BN1 1AA")
-        page.get_by_role("textbox", name="Phone *").fill("07123456789")
+        # More flexible field filling
+        page.locator("input").filter(has=page.get_by_text("First Name", exact=False)).first.fill(f"{TEST_PREFIX} John")
+        page.get_by_label("First Name", exact=False).fill(f"{TEST_PREFIX} John")
+        page.get_by_label("Surname", exact=False).fill(f"{TEST_PREFIX} Doe")
+        page.get_by_label("Email", exact=False).fill("form-test@example.com")
+        page.get_by_label("Date of birth", exact=False).fill("15/05/1990")
+        page.get_by_label("Flat", exact=False).fill("12A")
+        page.get_by_label("Street", exact=False).fill("Test Road")
+        page.get_by_label("Post code", exact=False).fill("BN1 1AA")
+        page.get_by_label("Phone", exact=False).fill("07123456789")
 
-        page.get_by_label("Beginner with no driving experience").check()
-        page.get_by_label("UK Provisional licence").check()
+        # Radio buttons
+        page.get_by_text("Beginner with no driving experience", exact=False).click()
+        page.get_by_text("UK Provisional licence", exact=False).click()
 
-        page.get_by_role("textbox", name="Theory test has passed ? If yes, when did you passed ? *").fill("Yes - Jan 2025")
-        page.get_by_role("textbox", name="If you have booked the driving test, Please mention the date & test centre. *").fill("Not booked yet")
-        page.get_by_label("I am looking for an automatic lesson only. *").check()
-        page.get_by_role("textbox", name="How many lessons you have already received in the Uk and have you got any other country’s driving experience? *").fill("0 lessons")
-        page.get_by_role("textbox", name="Your Availability? *").fill("Weekdays after 5pm")
-        page.get_by_role("textbox", name="Your preference date & time for a trial Lesson: Please give us three time slots within next two weeks *").fill("Mon 10am, Wed 2pm, Fri 4pm")
-        page.get_by_role("textbox", name="Your Message *").fill(f"{TEST_PREFIX} Automated daily test - please ignore.")
+        # Other required fields
+        page.get_by_label("Theory test", exact=False).fill("Yes - Jan 2025")
+        page.get_by_label("driving test", exact=False).fill("Not booked yet")
+        page.get_by_text("I am looking for an automatic lesson only", exact=False).click()
+        page.get_by_label("How many lessons", exact=False).fill("0 lessons")
+        page.get_by_label("Your Availability", exact=False).fill("Weekdays after 5pm")
+        page.get_by_label("preference date", exact=False).fill("Mon 10am, Wed 2pm, Fri 4pm")
+        page.get_by_label("Your Message", exact=False).fill(f"{TEST_PREFIX} Automated daily test - please ignore.")
 
         page.wait_for_timeout(1000)
-        page.get_by_role("button", name="Submit").or_(page.locator("input[type='submit']")).first.click()
+
+        # Submit
+        page.locator("input[type='submit'], button[type='submit']").first.click()
         page.wait_for_timeout(6000)
 
         content = page.content().lower()
-        success_words = ["thank you", "successfully", "received", "we will contact", "message has been sent"]
-
-        if any(word in content for word in success_words):
-            return True, "Main + Callback forms tested successfully"
-        else:
-            return False, "Main Contact Form failed - no success message"
+        if any(word in content for word in ["thank you", "successfully", "received", "we will contact"]):
+            return True, "Main Contact Form → PASSED"
+        return False, "Main Contact Form → FAILED (no success message)"
 
     except Exception as e:
         return False, f"Main Contact Form Error: {str(e)}"
 
-
 def test_callback_form(page, site_name: str, url: str):
-    """Test the floating REQUEST A CALLBACK form"""
     print(f"  → Testing REQUEST A CALLBACK form on {site_name}...")
-
     try:
-        page.goto(url, wait_until="domcontentloaded", timeout=45000)
-        page.wait_for_timeout(3000)
+        page.goto(url, wait_until="domcontentloaded", timeout=60000)
+        page.wait_for_timeout(4000)
 
-        # 1. Click the floating button
-        page.get_by_text("Request A Call Back", exact=False).first.click(timeout=10000)
+        # Try multiple possible texts for the floating button
+        button_selectors = [
+            "Request A Call Back",
+            "Request A Callback",
+            "Request a Call Back",
+            "Call Back",
+            "Callback"
+        ]
+
+        clicked = False
+        for text in button_selectors:
+            try:
+                btn = page.get_by_text(text, exact=False).first
+                if btn.is_visible(timeout=3000):
+                    btn.click()
+                    clicked = True
+                    break
+            except:
+                continue
+
+        if not clicked:
+            # Fallback: try clicking the red phone icon button
+            page.locator("button, div, a").filter(has_text="Call Back").first.click(timeout=5000)
+
         page.wait_for_timeout(2500)
 
-        # 2. Target the popup form more specifically
-        # We look for the form that contains "Phone number" label (unique to callback form)
-        popup_form = page.locator("form").filter(has_text="Phone number").first
+        # Fill popup form
+        popup = page.locator("form").filter(has_text="Phone number").first
 
-        # Fill fields inside the popup form only
-        popup_form.locator("input[type='text']").nth(0).fill(f"{TEST_PREFIX} Sarah")      # First Name
-        popup_form.locator("input[type='text']").nth(1).fill(f"{TEST_PREFIX} Khan")       # Last Name
-        popup_form.locator("input[type='tel']").fill("07987654321")                         # Phone
-        popup_form.locator("input[type='text']").nth(2).fill("BN2 2BB")                     # Post Code
+        popup.locator("input[type='text']").nth(0).fill(f"{TEST_PREFIX} Sarah")
+        popup.locator("input[type='text']").nth(1).fill(f"{TEST_PREFIX} Khan")
+        popup.locator("input[type='tel']").fill("07987654321")
+        popup.locator("input[type='text']").nth(2).fill("BN2 2BB")
 
-        # Check the Terms checkbox (only inside this form)
-        popup_form.locator("input[type='checkbox']").check()
+        # Check terms checkbox
+        popup.locator("input[type='checkbox']").check()
 
         page.wait_for_timeout(800)
-
-        # Submit
-        popup_form.locator("button[type='submit']").click()
-
+        popup.locator("button[type='submit']").click()
         page.wait_for_timeout(5000)
 
-        # Check success
         content = page.content().lower()
-        success_words = ["thank you", "successfully", "received", "we will call", "callback", "submitted", "success"]
-
-        if any(word in content for word in success_words):
+        if any(word in content for word in ["thank you", "successfully", "received", "we will call", "callback", "success"]):
             return True, "Callback Form → PASSED"
 
-        # Alternative success check: form disappeared
         if page.locator("form").filter(has_text="Phone number").count() == 0:
             return True, "Callback Form → PASSED (form closed)"
 
@@ -145,7 +151,6 @@ def test_callback_form(page, site_name: str, url: str):
 
     except Exception as e:
         return False, f"Callback Form Error: {str(e)}"
-
 
 def run_all_tests():
     print(f"\n=== Starting Multi-Website Form Tests at {datetime.now()} ===\n")
@@ -158,7 +163,7 @@ def run_all_tests():
         browser = p.chromium.launch(headless=True)
         context = browser.new_context(
             viewport={"width": 1400, "height": 900},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         )
         page = context.new_page()
 
@@ -188,10 +193,8 @@ def run_all_tests():
 
         browser.close()
 
-    # Send to WordPress
     send_to_wordpress(wp_results)
 
-    # Discord Report
     report = "\n".join(report_lines)
     print("\n" + report)
 

@@ -60,7 +60,10 @@ def test_main_contact_form(page, site_name: str, url: str):
         page.get_by_label("First Name", exact=False).fill(f"{TEST_PREFIX} John", timeout=10000)
         page.get_by_label("Surname", exact=False).fill(f"{TEST_PREFIX} Doe")
         page.get_by_label("Email", exact=False).fill("form-test@example.com")
-        page.get_by_label("Date of birth", exact=False).fill("15/05/1990")
+
+        # Fixed Date of birth (targets only visible field)
+        page.get_by_role("textbox", name="Date of birth *").fill("15/05/1990")
+
         page.get_by_label("Flat", exact=False).fill("12A")
         page.get_by_label("Street", exact=False).fill("Test Road")
         page.get_by_label("Post code", exact=False).fill("BN1 1AA")
@@ -95,28 +98,34 @@ def test_callback_form(page, site_name: str, url: str):
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
         page.wait_for_timeout(5000)
 
+        # Click floating button
         try:
             page.get_by_text("Request A Call Back", exact=False).first.click(timeout=8000)
         except:
             try:
                 page.get_by_text("Request A Callback", exact=False).first.click(timeout=5000)
             except:
-                page.locator("[class*='buttonizer'], [class*='callback'], button, div").filter(has_text="Call").last.click(timeout=5000)
+                page.locator("text=/Call Back/i").last.click(timeout=5000)
 
         page.wait_for_timeout(3000)
 
-        page.wait_for_selector("form input[type='tel']", timeout=10000)
+        # Wait for phone field
+        page.wait_for_selector("input[type='tel']", timeout=10000)
 
-        inputs = page.locator("form input[type='text']")
-        inputs.nth(0).fill(f"{TEST_PREFIX} Sarah")
-        inputs.nth(1).fill(f"{TEST_PREFIX} Khan")
-        page.locator("form input[type='tel']").fill("07987654321")
-        inputs.nth(2).fill("BN2 2BB")
+        # Fill fields
+        text_inputs = page.locator("form input[type='text']")
+        text_inputs.nth(0).fill(f"{TEST_PREFIX} Sarah")
+        text_inputs.nth(1).fill(f"{TEST_PREFIX} Khan")
+        page.locator("input[type='tel']").fill("07987654321")
+        text_inputs.nth(2).fill("BN2 2BB")
 
+        # Check terms checkbox
         page.locator("form input[type='checkbox']").last.check()
 
         page.wait_for_timeout(1000)
-        page.locator("form button[type='submit']").click()
+
+        # Submit
+        page.locator("button:has-text('Submit'), button[type='submit']").last.click(timeout=10000)
         page.wait_for_timeout(6000)
 
         content = page.content().lower()

@@ -53,11 +53,13 @@ def test_main_contact_form(page, site_name: str, url: str):
     print(f"  → Testing Main Contact Form on {site_name}...")
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
-        page.wait_for_timeout(5000)
+        page.wait_for_timeout(6000)  # Give extra time for JS forms
 
-        # More flexible field filling
-        page.locator("input").filter(has=page.get_by_text("First Name", exact=False)).first.fill(f"{TEST_PREFIX} John")
-        page.get_by_label("First Name", exact=False).fill(f"{TEST_PREFIX} John")
+        # Wait until First Name field is visible
+        page.wait_for_selector("input", timeout=15000)
+
+        # Fill using label text (most reliable for Ninja Forms)
+        page.get_by_label("First Name", exact=False).fill(f"{TEST_PREFIX} John", timeout=10000)
         page.get_by_label("Surname", exact=False).fill(f"{TEST_PREFIX} Doe")
         page.get_by_label("Email", exact=False).fill("form-test@example.com")
         page.get_by_label("Date of birth", exact=False).fill("15/05/1990")
@@ -70,20 +72,18 @@ def test_main_contact_form(page, site_name: str, url: str):
         page.get_by_text("Beginner with no driving experience", exact=False).click()
         page.get_by_text("UK Provisional licence", exact=False).click()
 
-        # Other required fields
+        # Other fields
         page.get_by_label("Theory test", exact=False).fill("Yes - Jan 2025")
         page.get_by_label("driving test", exact=False).fill("Not booked yet")
         page.get_by_text("I am looking for an automatic lesson only", exact=False).click()
         page.get_by_label("How many lessons", exact=False).fill("0 lessons")
         page.get_by_label("Your Availability", exact=False).fill("Weekdays after 5pm")
-        page.get_by_label("preference date", exact=False).fill("Mon 10am, Wed 2pm, Fri 4pm")
-        page.get_by_label("Your Message", exact=False).fill(f"{TEST_PREFIX} Automated daily test - please ignore.")
+        page.get_by_label("preference date", exact=False).fill("Mon 10am, Wed 2pm")
+        page.get_by_label("Your Message", exact=False).fill(f"{TEST_PREFIX} Automated test - please ignore")
 
         page.wait_for_timeout(1000)
-
-        # Submit
-        page.locator("input[type='submit'], button[type='submit']").first.click()
-        page.wait_for_timeout(6000)
+        page.locator("input[type='submit'], button:has-text('Submit')").first.click()
+        page.wait_for_timeout(7000)
 
         content = page.content().lower()
         if any(word in content for word in ["thank you", "successfully", "received", "we will contact"]):
@@ -91,65 +91,51 @@ def test_main_contact_form(page, site_name: str, url: str):
         return False, "Main Contact Form → FAILED (no success message)"
 
     except Exception as e:
+        page.screenshot(path="main-form-error.png", full_page=True)
         return False, f"Main Contact Form Error: {str(e)}"
 
 def test_callback_form(page, site_name: str, url: str):
     print(f"  → Testing REQUEST A CALLBACK form on {site_name}...")
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=60000)
-        page.wait_for_timeout(4000)
-
-        # Try multiple possible texts for the floating button
-        button_selectors = [
-            "Request A Call Back",
-            "Request A Callback",
-            "Request a Call Back",
-            "Call Back",
-            "Callback"
-        ]
-
-        clicked = False
-        for text in button_selectors:
-            try:
-                btn = page.get_by_text(text, exact=False).first
-                if btn.is_visible(timeout=3000):
-                    btn.click()
-                    clicked = True
-                    break
-            except:
-                continue
-
-        if not clicked:
-            # Fallback: try clicking the red phone icon button
-            page.locator("button, div, a").filter(has_text="Call Back").first.click(timeout=5000)
-
-        page.wait_for_timeout(2500)
-
-        # Fill popup form
-        popup = page.locator("form").filter(has_text="Phone number").first
-
-        popup.locator("input[type='text']").nth(0).fill(f"{TEST_PREFIX} Sarah")
-        popup.locator("input[type='text']").nth(1).fill(f"{TEST_PREFIX} Khan")
-        popup.locator("input[type='tel']").fill("07987654321")
-        popup.locator("input[type='text']").nth(2).fill("BN2 2BB")
-
-        # Check terms checkbox
-        popup.locator("input[type='checkbox']").check()
-
-        page.wait_for_timeout(800)
-        popup.locator("button[type='submit']").click()
         page.wait_for_timeout(5000)
+
+        # Try to find and click the callback button
+        try:
+            page.get_by_text("Request A Call Back", exact=False).first.click(timeout=8000)
+        except:
+            try:
+                page.get_by_text("Request A Callback", exact=False).first.click(timeout=5000)
+            except:
+                page.locator("[class*='buttonizer'], [class*='callback'], button, div").filter(has_text="Call").last.click(timeout=5000)
+
+        page.wait_for_timeout(3000)
+
+        # Wait for popup form
+        page.wait_for_selector("form input[type='tel']", timeout=10000)
+
+        # Fill the popup
+        inputs = page.locator("form input[type='text']")
+        inputs.nth(0).fill(f"{TEST_PREFIX} Sarah")
+        inputs.nth(1).fill(f"{TEST_PREFIX} Khan")
+        page.locator("form input[type='tel']").fill("07987654321")
+        inputs.nth(2).fill("BN2 2BB")
+
+        # Check terms
+        page.locator("form input[type='checkbox']").last.check()
+
+        page.wait_for_timeout(1000)
+        page.locator("form button[type='submit']").click()
+        page.wait_for_timeout(6000)
 
         content = page.content().lower()
         if any(word in content for word in ["thank you", "successfully", "received", "we will call", "callback", "success"]):
             return True, "Callback Form → PASSED"
 
-        if page.locator("form").filter(has_text="Phone number").count() == 0:
-            return True, "Callback Form → PASSED (form closed)"
-
         return False, "Callback Form → FAILED (no success message)"
 
     except Exception as e:
+        page.screenshot(path="callback-form-error.png", full_page=True)
         return False, f"Callback Form Error: {str(e)}"
 
 def run_all_tests():

@@ -97,6 +97,7 @@ def test_main_contact_form(page, site_name: str, url: str):
     except Exception as e:
         return False, f"Main Contact Form Error: {str(e)}"
 
+
 def test_callback_form(page, site_name: str, url: str):
     """Test the floating REQUEST A CALLBACK form"""
     print(f"  → Testing REQUEST A CALLBACK form on {site_name}...")
@@ -109,40 +110,38 @@ def test_callback_form(page, site_name: str, url: str):
         page.get_by_text("Request A Call Back", exact=False).first.click(timeout=10000)
         page.wait_for_timeout(2500)
 
-        # 2. Fill the form using more reliable selectors
-        # First Name
-        page.locator("form input[type='text']").nth(0).fill(f"{TEST_PREFIX} Sarah")
+        # 2. Target the popup form more specifically
+        # We look for the form that contains "Phone number" label (unique to callback form)
+        popup_form = page.locator("form").filter(has_text="Phone number").first
 
-        # Last Name
-        page.locator("form input[type='text']").nth(1).fill(f"{TEST_PREFIX} Khan")
+        # Fill fields inside the popup form only
+        popup_form.locator("input[type='text']").nth(0).fill(f"{TEST_PREFIX} Sarah")      # First Name
+        popup_form.locator("input[type='text']").nth(1).fill(f"{TEST_PREFIX} Khan")       # Last Name
+        popup_form.locator("input[type='tel']").fill("07987654321")                         # Phone
+        popup_form.locator("input[type='text']").nth(2).fill("BN2 2BB")                     # Post Code
 
-        # Phone number
-        page.locator("form input[type='tel']").fill("07987654321")
-
-        # Post Code
-        page.locator("form input[type='text']").nth(2).fill("BN2 2BB")
-
-        # 3. Check the required Terms & Conditions checkbox
-        page.locator("form input[type='checkbox']").check()
+        # Check the Terms checkbox (only inside this form)
+        popup_form.locator("input[type='checkbox']").check()
 
         page.wait_for_timeout(800)
 
-        # 4. Click Submit
-        page.locator("form button[type='submit']").click()
+        # Submit
+        popup_form.locator("button[type='submit']").click()
 
         page.wait_for_timeout(5000)
 
-        # 5. Check for success
+        # Check success
         content = page.content().lower()
         success_words = ["thank you", "successfully", "received", "we will call", "callback", "submitted", "success"]
 
         if any(word in content for word in success_words):
             return True, "Callback Form → PASSED"
-        else:
-            # Even if no clear message, check if form disappeared (common success behavior)
-            if page.locator("form button[type='submit']").count() == 0:
-                return True, "Callback Form → PASSED (form closed after submit)"
-            return False, "Callback Form → FAILED (no success message detected)"
+
+        # Alternative success check: form disappeared
+        if page.locator("form").filter(has_text="Phone number").count() == 0:
+            return True, "Callback Form → PASSED (form closed)"
+
+        return False, "Callback Form → FAILED (no success message)"
 
     except Exception as e:
         return False, f"Callback Form Error: {str(e)}"

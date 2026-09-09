@@ -11,6 +11,7 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.common.action_chains import ActionChains
 from webdriver_manager.chrome import ChromeDriverManager
 
 load_dotenv()
@@ -64,6 +65,7 @@ def create_driver():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--window-size=1400,900")
     options.add_argument("--disable-gpu")
+    options.add_argument("--disable-blink-features=AutomationControlled")
     options.add_argument(
         "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     )
@@ -73,6 +75,18 @@ def create_driver():
     driver.set_page_load_timeout(60)
     return driver
 
+def safe_send_keys(driver, element, value):
+    """Safely type into an element"""
+    try:
+        driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", element)
+        time.sleep(0.3)
+        element.clear()
+        element.send_keys(value)
+    except:
+        # JavaScript fallback
+        driver.execute_script("arguments[0].value = arguments[1];", element, value)
+        driver.execute_script("arguments[0].dispatchEvent(new Event('input', { bubbles: true }));", element)
+
 def test_main_contact_form(driver, site_name: str, url: str):
     print(f"  → Testing Main Contact Form on {site_name}...")
     try:
@@ -81,67 +95,69 @@ def test_main_contact_form(driver, site_name: str, url: str):
 
         wait = WebDriverWait(driver, 20)
 
-        # Fill fields using labels (Ninja Forms)
-        def fill_by_label(label_text, value):
+        def fill_visible_input(label_part, value):
+            # Find visible text inputs near the label
+            xpath = f"//label[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{label_part.lower()}')]/following::input[@type='text' or @type='email' or @type='tel'][1]"
             try:
-                el = wait.until(EC.presence_of_element_located(
-                    (By.XPATH, f"//label[contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), '{label_text.lower()}')]/following::input[1]")
-                ))
-                el.clear()
-                el.send_keys(value)
+                el = wait.until(EC.visibility_of_element_located((By.XPATH, xpath)))
+                safe_send_keys(driver, el, value)
+                return True
             except:
-                # Fallback
-                el = driver.find_element(By.XPATH, f"//*[contains(text(), '{label_text}')]/following::input[1]")
-                el.clear()
-                el.send_keys(value)
+                # Alternative: find by aria-labelledby or nearby text
+                try:
+                    el = driver.find_element(By.XPATH, f"//*[contains(text(), '{label_part}')]/following::input[not(@type='hidden')][1]")
+                    safe_send_keys(driver, el, value)
+                    return True
+                except:
+                    return False
 
-        fill_by_label("First Name", f"{TEST_PREFIX} John")
-        fill_by_label("Surname", f"{TEST_PREFIX} Doe")
-        fill_by_label("Email", "form-test@example.com")
+        fill_visible_input("First Name", f"{TEST_PREFIX} John")
+        fill_visible_input("Surname", f"{TEST_PREFIX} Doe")
+        fill_visible_input("Email", "form-test@example.com")
 
-        # Date of birth - target visible textbox
+        # Date of birth - specifically target visible textbox
         try:
             dob = driver.find_element(By.CSS_SELECTOR, "input.form-control.input[type='text']")
-            dob.clear()
-            dob.send_keys("15/05/1990")
+            safe_send_keys(driver, dob, "15/05/1990")
         except:
-            fill_by_label("Date of birth", "15/05/1990")
+            fill_visible_input("Date of birth", "15/05/1990")
 
-        fill_by_label("Flat", "12A")
-        fill_by_label("Street", "Test Road")
-        fill_by_label("Post code", "BN1 1AA")
-        fill_by_label("Phone", "07123456789")
+        fill_visible_input("Flat", "12A")
+        fill_visible_input("Street", "Test Road")
+        fill_visible_input("Post code", "BN1 1AA")
+        fill_visible_input("Phone", "07123456789")
 
         # Radio buttons
+        for text in ["Beginner with no driving experience", "UK Provisional licence"]:
+            try:
+                el = driver.find_element(By.XPATH, f"//*[contains(text(), '{text}')]")
+                driver.execute_script("arguments[0].click();", el)
+            except:
+                pass
+
+        fill_visible_input("Theory test", "Yes - Jan 2025")
+        fill_visible_input("driving test", "Not booked yet")
+
         try:
-            driver.find_element(By.XPATH, "//*[contains(text(), 'Beginner with no driving experience')]").click()
-        except:
-            pass
-        try:
-            driver.find_element(By.XPATH, "//*[contains(text(), 'UK Provisional licence')]").click()
+            el = driver.find_element(By.XPATH, "//*[contains(text(), 'I am looking for an automatic lesson only')]")
+            driver.execute_script("arguments[0].click();", el)
         except:
             pass
 
-        fill_by_label("Theory test", "Yes - Jan 2025")
-        fill_by_label("driving test", "Not booked yet")
-
-        try:
-            driver.find_element(By.XPATH, "//*[contains(text(), 'I am looking for an automatic lesson only')]").click()
-        except:
-            pass
-
-        fill_by_label("How many lessons", "0 lessons")
-        fill_by_label("Your Availability", "Weekdays after 5pm")
-        fill_by_label("preference date", "Mon 10am, Wed 2pm")
-        fill_by_label("Your Message", f"{TEST_PREFIX} Automated test - please ignore")
+        fill_visible_input("How many lessons", "0 lessons")
+        fill_visible_input("Your Availability", "Weekdays after 5pm")
+        fill_visible_input("preference date", "Mon 10am, Wed 2pm")
+        fill_visible_input("Your Message", f"{TEST_PREFIX} Automated test - please ignore")
 
         time.sleep(1)
 
         # Submit
         try:
-            driver.find_element(By.CSS_SELECTOR, "input[type='submit']").click()
+            submit = driver.find_element(By.CSS_SELECTOR, "input[type='submit']")
+            driver.execute_script("arguments[0].click();", submit)
         except:
-            driver.find_element(By.XPATH, "//button[contains(text(), 'Submit')]").click()
+            submit = driver.find_element(By.XPATH, "//button[contains(text(), 'Submit') or contains(@class, 'submit')]")
+            driver.execute_script("arguments[0].click();", submit)
 
         time.sleep(7)
 
@@ -161,52 +177,63 @@ def test_callback_form(driver, site_name: str, url: str):
 
         # Click floating button
         try:
-            btn = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Request A Call Back') or contains(text(), 'Request A Callback')]"))
+            btn = WebDriverWait(driver, 12).until(
+                EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Request A Call Back') or contains(text(), 'Request A Callback') or contains(text(), 'Call Back')]"))
             )
-            btn.click()
-        except:
-            driver.find_element(By.XPATH, "//*[contains(text(), 'Call Back') or contains(text(), 'Callback')]").click()
+            driver.execute_script("arguments[0].click();", btn)
+        except Exception as e:
+            return False, f"Callback Form Error: Could not click button - {str(e)}"
 
         time.sleep(3)
 
-        # Wait for phone field
+        # Wait for phone field (unique to this form)
         WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='tel']"))
         )
 
-        # Fill fields
+        # Fill text fields
         text_inputs = driver.find_elements(By.CSS_SELECTOR, "form input[type='text']")
         if len(text_inputs) >= 3:
-            text_inputs[0].clear()
-            text_inputs[0].send_keys(f"{TEST_PREFIX} Sarah")
-            text_inputs[1].clear()
-            text_inputs[1].send_keys(f"{TEST_PREFIX} Khan")
-            text_inputs[2].clear()
-            text_inputs[2].send_keys("BN2 2BB")
+            safe_send_keys(driver, text_inputs[0], f"{TEST_PREFIX} Sarah")
+            safe_send_keys(driver, text_inputs[1], f"{TEST_PREFIX} Khan")
+            safe_send_keys(driver, text_inputs[2], "BN2 2BB")
+        else:
+            return False, "Callback Form Error: Could not find text inputs"
 
+        # Phone
         phone = driver.find_element(By.CSS_SELECTOR, "input[type='tel']")
-        phone.clear()
-        phone.send_keys("07987654321")
+        safe_send_keys(driver, phone, "07987654321")
 
         # Terms checkbox
         try:
             checkboxes = driver.find_elements(By.CSS_SELECTOR, "form input[type='checkbox']")
             if checkboxes:
-                checkboxes[-1].click()
+                driver.execute_script("arguments[0].click();", checkboxes[-1])
         except:
             pass
 
         time.sleep(1)
 
-        # Submit
-        try:
-            submit = WebDriverWait(driver, 10).until(
-                EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Submit') or @type='submit']"))
-            )
-            submit.click()
-        except:
-            driver.find_element(By.CSS_SELECTOR, "form button").click()
+        # Submit button - multiple strategies
+        submitted = False
+        selectors = [
+            (By.XPATH, "//button[contains(text(), 'Submit')]"),
+            (By.CSS_SELECTOR, "button[type='submit']"),
+            (By.CSS_SELECTOR, "form button"),
+            (By.XPATH, "//button[contains(@class, 'muiButton') or contains(@class, 'submit')]"),
+        ]
+
+        for by, selector in selectors:
+            try:
+                btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((by, selector)))
+                driver.execute_script("arguments[0].click();", btn)
+                submitted = True
+                break
+            except:
+                continue
+
+        if not submitted:
+            return False, "Callback Form Error: Could not find/click Submit button"
 
         time.sleep(6)
 

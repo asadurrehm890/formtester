@@ -175,68 +175,85 @@ def test_callback_form(driver, site_name: str, url: str):
         driver.get(url)
         time.sleep(5)
 
-        # Click floating button
+        # Click the exact floating button
         try:
             btn = WebDriverWait(driver, 12).until(
-                EC.element_to_be_clickable((By.XPATH, "//*[contains(text(), 'Request A Call Back') or contains(text(), 'Request A Callback') or contains(text(), 'Call Back')]"))
+                EC.element_to_be_clickable((
+                    By.XPATH, 
+                    "//*[contains(text(), 'Request A Call Back-We Will Call You') or contains(text(), 'Request A Call Back')]"
+                ))
             )
             driver.execute_script("arguments[0].click();", btn)
         except Exception as e:
-            return False, f"Callback Form Error: Could not click button - {str(e)}"
+            return False, f"Callback Form Error: Could not click floating button - {str(e)}"
 
         time.sleep(3)
 
-        # Wait for phone field (unique to this form)
+        # Wait until the popup form appears (Phone number field)
         WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='tel']"))
         )
 
-        # Fill text fields
+        # Fill the form fields
         text_inputs = driver.find_elements(By.CSS_SELECTOR, "form input[type='text']")
+        
         if len(text_inputs) >= 3:
-            safe_send_keys(driver, text_inputs[0], f"{TEST_PREFIX} Sarah")
-            safe_send_keys(driver, text_inputs[1], f"{TEST_PREFIX} Khan")
-            safe_send_keys(driver, text_inputs[2], "BN2 2BB")
+            safe_send_keys(driver, text_inputs[0], f"{TEST_PREFIX} Sarah")   # First Name
+            safe_send_keys(driver, text_inputs[1], f"{TEST_PREFIX} Khan")    # Last Name
+            safe_send_keys(driver, text_inputs[2], "BN2 2BB")                 # Post Code
         else:
             return False, "Callback Form Error: Could not find text inputs"
 
-        # Phone
+        # Phone number
         phone = driver.find_element(By.CSS_SELECTOR, "input[type='tel']")
         safe_send_keys(driver, phone, "07987654321")
 
-        # Terms checkbox
+        # Check the Terms & Conditions checkbox
         try:
-            checkboxes = driver.find_elements(By.CSS_SELECTOR, "form input[type='checkbox']")
-            if checkboxes:
-                driver.execute_script("arguments[0].click();", checkboxes[-1])
+            checkbox = driver.find_element(By.CSS_SELECTOR, "form input[type='checkbox']")
+            driver.execute_script("arguments[0].click();", checkbox)
         except:
             pass
 
         time.sleep(1)
 
-        # Submit button - multiple strategies
+        # Click the Submit button (multiple reliable ways)
         submitted = False
-        selectors = [
-            (By.XPATH, "//button[contains(text(), 'Submit')]"),
-            (By.CSS_SELECTOR, "button[type='submit']"),
-            (By.CSS_SELECTOR, "form button"),
-            (By.XPATH, "//button[contains(@class, 'muiButton') or contains(@class, 'submit')]"),
-        ]
 
-        for by, selector in selectors:
+        # Method 1: Button with text "Submit"
+        try:
+            submit_btn = WebDriverWait(driver, 8).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Submit']"))
+            )
+            driver.execute_script("arguments[0].click();", submit_btn)
+            submitted = True
+        except:
+            pass
+
+        # Method 2: Any button inside the form
+        if not submitted:
             try:
-                btn = WebDriverWait(driver, 5).until(EC.element_to_be_clickable((by, selector)))
-                driver.execute_script("arguments[0].click();", btn)
+                submit_btn = driver.find_element(By.CSS_SELECTOR, "form button")
+                driver.execute_script("arguments[0].click();", submit_btn)
                 submitted = True
-                break
             except:
-                continue
+                pass
+
+        # Method 3: Button with type submit
+        if not submitted:
+            try:
+                submit_btn = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
+                driver.execute_script("arguments[0].click();", submit_btn)
+                submitted = True
+            except:
+                pass
 
         if not submitted:
             return False, "Callback Form Error: Could not find/click Submit button"
 
         time.sleep(6)
 
+        # Check success
         content = driver.page_source.lower()
         if any(word in content for word in ["thank you", "successfully", "received", "we will call", "callback", "success"]):
             return True, "Callback Form → PASSED"

@@ -169,17 +169,18 @@ def test_main_contact_form(driver, site_name: str, url: str):
     except Exception as e:
         return False, f"Main Contact Form Error: {str(e)}"
 
+
 def test_callback_form(driver, site_name: str, url: str):
     print(f"  → Testing REQUEST A CALLBACK form on {site_name}...")
     try:
         driver.get(url)
-        time.sleep(5)
+        time.sleep(6)
 
-        # Click the exact floating button
+        # 1. Click the floating button
         try:
             btn = WebDriverWait(driver, 12).until(
                 EC.element_to_be_clickable((
-                    By.XPATH, 
+                    By.XPATH,
                     "//*[contains(text(), 'Request A Call Back-We Will Call You') or contains(text(), 'Request A Call Back')]"
                 ))
             )
@@ -187,63 +188,88 @@ def test_callback_form(driver, site_name: str, url: str):
         except Exception as e:
             return False, f"Callback Form Error: Could not click floating button - {str(e)}"
 
-        time.sleep(3)
+        time.sleep(4)
 
-        # Wait until the popup form appears (Phone number field)
+        # 2. Check if the form is inside an iframe (common with Buttonizer)
+        iframes = driver.find_elements(By.TAG_NAME, "iframe")
+        switched = False
+        for iframe in iframes:
+            try:
+                driver.switch_to.frame(iframe)
+                if driver.find_elements(By.CSS_SELECTOR, "input[type='tel']"):
+                    switched = True
+                    print("    (switched into iframe)")
+                    break
+                driver.switch_to.default_content()
+            except:
+                driver.switch_to.default_content()
+
+        # 3. Wait for the form
         WebDriverWait(driver, 15).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='tel']"))
         )
 
-        # Fill the form fields
-        text_inputs = driver.find_elements(By.CSS_SELECTOR, "form input[type='text']")
-        
+        # 4. Fill the fields
+        text_inputs = driver.find_elements(By.CSS_SELECTOR, "input[type='text']")
         if len(text_inputs) >= 3:
-            safe_send_keys(driver, text_inputs[0], f"{TEST_PREFIX} Sarah")   # First Name
-            safe_send_keys(driver, text_inputs[1], f"{TEST_PREFIX} Khan")    # Last Name
-            safe_send_keys(driver, text_inputs[2], "BN2 2BB")                 # Post Code
+            safe_send_keys(driver, text_inputs[0], f"{TEST_PREFIX} Sarah")
+            safe_send_keys(driver, text_inputs[1], f"{TEST_PREFIX} Khan")
+            safe_send_keys(driver, text_inputs[2], "BN2 2BB")
         else:
-            return False, "Callback Form Error: Could not find text inputs"
+            return False, "Callback Form Error: Not enough text inputs found"
 
-        # Phone number
         phone = driver.find_element(By.CSS_SELECTOR, "input[type='tel']")
         safe_send_keys(driver, phone, "07987654321")
 
-        # Check the Terms & Conditions checkbox
+        # Checkbox
         try:
-            checkbox = driver.find_element(By.CSS_SELECTOR, "form input[type='checkbox']")
+            checkbox = driver.find_element(By.CSS_SELECTOR, "input[type='checkbox']")
             driver.execute_script("arguments[0].click();", checkbox)
         except:
             pass
 
         time.sleep(1)
 
-        # Click the Submit button (multiple reliable ways)
+        # 5. Click Submit using multiple strong methods
         submitted = False
 
-        # Method 1: Button with text "Submit"
+        # Method 1: Exact button from your HTML
         try:
-            submit_btn = WebDriverWait(driver, 8).until(
-                EC.element_to_be_clickable((By.XPATH, "//button[normalize-space()='Submit']"))
+            submit = WebDriverWait(driver, 8).until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']._muiButton_1lcp6_1"))
             )
-            driver.execute_script("arguments[0].click();", submit_btn)
+            driver.execute_script("arguments[0].click();", submit)
             submitted = True
         except:
             pass
 
-        # Method 2: Any button inside the form
+        # Method 2: Any submit button
         if not submitted:
             try:
-                submit_btn = driver.find_element(By.CSS_SELECTOR, "form button")
-                driver.execute_script("arguments[0].click();", submit_btn)
+                submit = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
+                driver.execute_script("arguments[0].click();", submit)
                 submitted = True
             except:
                 pass
 
-        # Method 3: Button with type submit
+        # Method 3: Button containing text Submit
         if not submitted:
             try:
-                submit_btn = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-                driver.execute_script("arguments[0].click();", submit_btn)
+                submit = driver.find_element(By.XPATH, "//button[contains(text(),'Submit')]")
+                driver.execute_script("arguments[0].click();", submit)
+                submitted = True
+            except:
+                pass
+
+        # Method 4: Pure JavaScript fallback
+        if not submitted:
+            try:
+                driver.execute_script("""
+                    const btn = document.querySelector('button[type="submit"]') || 
+                                document.querySelector('button._muiButton_1lcp6_1') ||
+                                Array.from(document.querySelectorAll('button')).find(b => b.innerText.trim() === 'Submit');
+                    if (btn) btn.click();
+                """)
                 submitted = True
             except:
                 pass
@@ -253,7 +279,10 @@ def test_callback_form(driver, site_name: str, url: str):
 
         time.sleep(6)
 
-        # Check success
+        # Switch back if we were in iframe
+        if switched:
+            driver.switch_to.default_content()
+
         content = driver.page_source.lower()
         if any(word in content for word in ["thank you", "successfully", "received", "we will call", "callback", "success"]):
             return True, "Callback Form → PASSED"
@@ -261,7 +290,12 @@ def test_callback_form(driver, site_name: str, url: str):
         return False, "Callback Form → FAILED (no success message)"
 
     except Exception as e:
+        try:
+            driver.switch_to.default_content()
+        except:
+            pass
         return False, f"Callback Form Error: {str(e)}"
+
 
 def run_all_tests():
     print(f"\n=== Starting Multi-Website Form Tests at {datetime.now()} ===\n")

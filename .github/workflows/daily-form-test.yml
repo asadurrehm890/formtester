@@ -2,7 +2,7 @@ name: Daily Multi-Website Form Test
 
 on:
   schedule:
-    - cron: '0 7 * * *'   # 8:00 AM UK time (BST)
+    - cron: '23 7 * * *'   # 8:00 AM UK time (BST)
   workflow_dispatch:
 
 jobs:
